@@ -4,7 +4,14 @@ A production ticketing system I built for a local community dinner in Catalonia 
 
 Everything runs on free tiers. The only cost is Stripe's per-transaction fee, which a small management fee on each ticket passes on to the buyer.
 
+![Ticket booking page](docs/screenshots/landing-page.jpg)
+
+<details>
+<summary>Admin dashboard</summary>
+
 ![Admin dashboard](docs/screenshots/admin-dashboard.png)
+
+</details>
 
 ---
 
