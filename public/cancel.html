@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Pagament cancel·lat — Festa Major de Catalunya 2026">
+  <title>Cancel·lat — Festa Major de Catalunya 2026</title>
+
+  <!-- Tailwind CSS v4 Play CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/css/custom.css">
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎟️</text></svg>">
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+  <!-- ── Animated Background Orbs ──────────────────────────────────────── -->
+  <div class="bg-orb bg-orb--1"></div>
+  <div class="bg-orb bg-orb--2"></div>
+  <div class="bg-orb bg-orb--3"></div>
+
+  <!-- ── Cancel Card ───────────────────────────────────────────────────── -->
+  <main class="glass-card w-full max-w-lg relative z-10 p-8 sm:p-10 text-center">
+
+    <!-- Icon -->
+    <div class="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6" style="background: rgba(251, 191, 36, 0.15); border: 1px solid rgba(251, 191, 36, 0.3);">
+      <svg class="w-10 h-10 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+      </svg>
+    </div>
+
+    <!-- Message -->
+    <h1 class="text-2xl sm:text-3xl font-bold text-white mb-3">
+      Pagament cancel·lat
+    </h1>
+    <p class="text-slate-400 mb-8 max-w-sm mx-auto">
+      El procés de pagament ha estat cancel·lat. No s'ha realitzat cap càrrec al teu compte.
+      Pots tornar a intentar-ho en qualsevol moment.
+    </p>
+
+    <!-- Return Button -->
+    <a href="/" class="btn-primary no-underline inline-flex">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+      </svg>
+      Tornar i provar de nou
+    </a>
+  </main>
+</body>
+</html>

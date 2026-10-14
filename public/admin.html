@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Panell d'administració de vendes d'entrades per al Sopar de Festa Major 2026.">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Administració — Sopar de Festa Major 2026</title>
+
+  <!-- Tailwind CSS v4 Play CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3"></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/css/custom.css?v=9.0">
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+
+  <style>
+    /* Custom style overrides for the dashboard */
+    :root {
+      --radius-card: 0.5rem;
+      --radius-input: 0.5rem;
+      --shadow-card: 0 20px 45px rgba(0, 0, 0, 0.5);
+      --color-primary-light: #f87171;
+      --transition-base: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .admin-container {
+      width: 100%;
+      max-width: 1350px;
+      position: relative;
+      z-index: 10;
+    }
+    .glass-card {
+      background: rgba(18, 7, 7, 0.75);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 0.5rem !important;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+    .glass-input {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 0.75rem;
+      color: #fff;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .glass-input:focus {
+      outline: none;
+      border-color: #f87171;
+      background: rgba(255, 255, 255, 0.09);
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
+    }
+    .stat-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(220, 38, 38, 0.15);
+      border: 1px solid rgba(220, 38, 38, 0.25);
+      color: #f87171;
+      flex-shrink: 0;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+<body class="flex items-start justify-center min-h-screen p-4 md:p-8 py-10 bg-slate-950 text-slate-100">
+
+  <!-- Background Orbs -->
+  <div class="bg-orb bg-orb--1"></div>
+  <div class="bg-orb bg-orb--2"></div>
+  <div class="bg-orb bg-orb--3"></div>
+
+  <!-- ── 1. LOGIN SCREEN ─────────────────────────────────────────────────── -->
+  <div id="login-screen" class="admin-container max-w-md my-auto relative z-10 hidden">
+    <div class="glass-card p-8 border border-white/10 shadow-2xl relative overflow-hidden">
+      <div class="absolute -top-10 -right-10 w-32 h-32 bg-red-600/10 rounded-full blur-2xl"></div>
+      
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 mx-auto mb-4 bg-red-600/20 border border-red-500/30 rounded-2xl flex items-center justify-center text-3xl">
+          📊
+        </div>
+        <h1 class="text-2xl font-extrabold tracking-tight">Accés Administrador</h1>
+        <p class="text-slate-400 text-sm mt-1">Introdueix la contrasenya del panell de control</p>
+      </div>
+
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label for="password" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Contrasenya</label>
+          <input 
+            type="password" 
+            id="password" 
+            class="w-full p-3 glass-input text-center text-lg tracking-widest font-mono" 
+            placeholder="••••••••"
+            required
+            autocomplete="current-password"
+          >
+        </div>
+        <button type="submit" class="w-full py-3 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white font-bold rounded-xl transition duration-300 shadow-lg shadow-red-900/30">
+          Entrar al Panell
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── 2. DASHBOARD SCREEN ────────────────────────────────────────────── -->
+  <div id="dashboard-screen" class="admin-container relative z-10 hidden space-y-6">
+    
+    <!-- Top Header -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 glass-card p-6 md:p-8">
+      <div>
+        <div class="flex items-center gap-2.5">
+          <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-red-600/20 text-red-400 border border-red-500/30 uppercase tracking-widest font-heading">Organització</span>
+          <span class="text-slate-600 text-xs">|</span>
+          <span class="text-slate-400 text-xs font-mono tracking-wide" id="current-project-id">Festa Major 2026</span>
+        </div>
+        <h1 class="text-2xl md:text-3xl font-black tracking-tight text-white mt-2 font-heading">Panell d'Estadístiques i Control</h1>
+      </div>
+      
+      <div class="flex items-center gap-4 sm:gap-5 flex-wrap">
+        <button id="btn-export-csv" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-sm transition-all duration-200 shadow-lg shadow-emerald-950/40 hover:-translate-y-0.5 flex items-center gap-2.5 cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Descarregar CSV
+        </button>
+        <button id="btn-logout" class="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/15 rounded-xl font-bold text-sm transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
+          Tanca la sessió
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Grid -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 md:gap-6">
+      <!-- Total sold -->
+      <div class="glass-card stat-card-red p-6 rounded-2xl overflow-hidden flex flex-col justify-between min-h-[130px] relative">
+        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 to-rose-400"></div>
+        <div class="flex items-center justify-between w-full mb-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-red-300 font-mono">Venudes</span>
+          <span class="stat-badge bg-red-500/20 border border-red-500/40 text-red-300 text-xl shrink-0">🎟️</span>
+        </div>
+        <p class="text-3xl lg:text-4xl font-black text-white font-heading tracking-tight truncate" id="stat-sold">0</p>
+      </div>
+      
+      <!-- Total income -->
+      <div class="glass-card stat-card-emerald p-6 rounded-2xl overflow-hidden flex flex-col justify-between min-h-[130px] relative">
+        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
+        <div class="flex items-center justify-between w-full mb-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-emerald-300 font-mono">Ingressos</span>
+          <span class="stat-badge bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xl shrink-0">💶</span>
+        </div>
+        <p class="text-3xl lg:text-4xl font-black text-emerald-300 font-heading tracking-tight truncate" id="stat-income">0,00 €</p>
+      </div>
+
+      <!-- Vegan dinners -->
+      <div class="glass-card stat-card-green p-6 rounded-2xl overflow-hidden flex flex-col justify-between min-h-[130px] relative">
+        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-500 to-emerald-400"></div>
+        <div class="flex items-center justify-between w-full mb-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-green-300 font-mono">Menú Vegà</span>
+          <span class="stat-badge bg-green-500/20 border border-green-500/40 text-green-300 text-xl shrink-0">🌱</span>
+        </div>
+        <p class="text-3xl lg:text-4xl font-black text-green-300 font-heading tracking-tight truncate" id="stat-vegan">0</p>
+      </div>
+
+      <!-- Samarretes -->
+      <div class="glass-card stat-card-amber p-6 rounded-2xl overflow-hidden flex flex-col justify-between min-h-[130px] relative">
+        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-yellow-400"></div>
+        <div class="flex items-center justify-between w-full mb-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-amber-300 font-mono">Samarretes</span>
+          <span class="stat-badge bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xl shrink-0">👕</span>
+        </div>
+        <p class="text-3xl lg:text-4xl font-black text-amber-300 font-heading tracking-tight truncate" id="stat-shirts">0</p>
+      </div>
+
+      <!-- Tickets remaining -->
+      <div class="glass-card stat-card-orange p-6 rounded-2xl overflow-hidden flex flex-col justify-between min-h-[130px] relative">
+        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-amber-500"></div>
+        <div class="flex items-center justify-between w-full mb-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-orange-300 font-mono">Restants / Total</span>
+          <span class="stat-badge bg-orange-500/20 border border-orange-500/40 text-orange-300 text-xl shrink-0">📈</span>
+        </div>
+        <p class="text-3xl lg:text-4xl font-black text-orange-300 font-heading tracking-tight truncate" id="stat-remaining">0 / 0</p>
+      </div>
+    </section>
+
+    <!-- Visual Graphs Section -->
+    <section class="space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Diet Pie Chart -->
+        <div class="glass-card p-6 flex flex-col items-center justify-between border border-white/10">
+          <div class="w-full flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+            <h2 class="text-sm font-extrabold uppercase tracking-wider text-slate-300 font-heading">Menús de Sopar</h2>
+            <span class="text-xs text-slate-400 font-mono" id="diet-chart-total">0 sopars</span>
+          </div>
+          <div class="w-full max-w-[200px] h-[200px] flex items-center justify-center relative">
+            <canvas id="dietChart"></canvas>
+          </div>
+          <div class="w-full grid grid-cols-2 gap-3 mt-4 text-xs font-mono text-center">
+            <div class="p-2.5 bg-white/5 border border-white/5 rounded-xl">
+              <span class="block text-slate-400">Estàndard 🥩</span>
+              <span class="font-extrabold text-red-400 text-base mt-0.5 block font-heading" id="diet-meat-count">0</span>
+            </div>
+            <div class="p-2.5 bg-white/5 border border-white/5 rounded-xl">
+              <span class="block text-slate-400">Vegà 🌱</span>
+              <span class="font-extrabold text-green-400 text-base mt-0.5 block font-heading" id="diet-vegan-count">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kinta Bar Chart (Takes 2/3 width) -->
+        <div class="glass-card p-6 md:col-span-2 flex flex-col justify-between border border-white/10">
+          <div class="w-full flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+            <h2 class="text-sm font-extrabold uppercase tracking-wider text-slate-300 font-heading">Distribució per Kintes</h2>
+            <span class="text-xs text-slate-400 font-mono" id="kinta-chart-total">0 grups</span>
+          </div>
+          <div class="w-full h-[220px]">
+            <canvas id="kintaChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shirt Sizes Bar Chart -->
+      <div class="glass-card p-6 flex flex-col justify-between border border-white/10">
+        <div class="w-full flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+          <h2 class="text-sm font-extrabold uppercase tracking-wider text-slate-300 font-heading">Distribució de Talles de Samarreta 👕</h2>
+          <span class="text-xs text-slate-400 font-mono" id="shirt-chart-total">0 samarretes</span>
+        </div>
+        <div class="w-full h-[220px]">
+          <canvas id="shirtChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Section Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      
+      <!-- Attendees Column (Left 2/3) -->
+      <div class="lg:col-span-2 space-y-6">
+        
+        <!-- ATTENDEES TABLE -->
+        <div class="glass-card overflow-hidden border border-white/10">
+          <div class="p-6 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold font-heading">Llistat de Persones</h2>
+              <p class="text-slate-400 text-xs mt-0.5">Assistents registrats que han efectuat el pagament</p>
+            </div>
+            <div class="relative max-w-xs w-full">
+              <input 
+                type="text" 
+                id="search-input" 
+                class="w-full py-2.5 pl-9 pr-4 text-xs glass-input font-mono rounded-xl focus:ring-2 focus:ring-red-500/30" 
+                placeholder="Cerca per nom, correu, talla..."
+              >
+              <svg class="absolute left-3 top-3.5 w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </div>
+          </div>
+          
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-white/5 border-b border-white/10 text-[11px] font-bold uppercase tracking-wider text-slate-300 font-heading">
+                  <th class="p-4.5">Nom Complet</th>
+                  <th class="p-4.5">Dades de Contacte</th>
+                  <th class="p-4.5">Kinta</th>
+                  <th class="p-4.5">Talla 👕</th>
+                  <th class="p-4.5">Tipus Menú</th>
+                  <th class="p-4.5">Propostes / Suggeriments</th>
+                  <th class="p-4.5">Data Pagament</th>
+                </tr>
+              </thead>
+              <tbody id="attendees-table-body" class="divide-y divide-white/5 text-sm">
+                <tr>
+                  <td colspan="7" class="p-8 text-center text-slate-500">Carregant dades...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Settings & Event Config -->
+      <div class="space-y-6">
+        <div class="glass-card p-6 md:p-8 space-y-6 border border-white/10">
+          <h2 class="text-xl font-bold flex items-center gap-2 border-b border-white/5 pb-4 font-heading">
+            <span>⚙️</span> Ajustaments Esdeveniment
+          </h2>
+          <form id="event-config-form" class="space-y-5 text-xs">
+            <div>
+              <label for="config-title" class="block font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-mono">Títol del Sopar</label>
+              <input type="text" id="config-title" class="w-full p-3 glass-input text-sm rounded-xl" required>
+            </div>
+            
+            <div>
+              <label for="config-date" class="block font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-mono">Data</label>
+              <input type="text" id="config-date" class="w-full p-3 glass-input text-sm rounded-xl" placeholder="e.g. 16 d'agost de 2026" required>
+            </div>
+
+            <div>
+              <label for="config-location" class="block font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-mono">Ubicació</label>
+              <input type="text" id="config-location" class="w-full p-3 glass-input text-sm rounded-xl" required>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label for="config-price" class="block font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-mono">Preu Base (€)</label>
+                <input type="number" id="config-price" class="w-full p-3 glass-input text-sm rounded-xl" min="0" step="0.5" required>
+              </div>
+              <div>
+                <label for="config-total" class="block font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-mono">Entrades Totals</label>
+                <input type="number" id="config-total" class="w-full p-3 glass-input text-sm rounded-xl" min="1" required>
+              </div>
+            </div>
+
+            <div>
+              <label for="config-remaining" class="block font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-mono">Entrades Restants</label>
+              <input type="number" id="config-remaining" class="w-full p-3 glass-input text-sm rounded-xl" min="0" required>
+            </div>
+
+            <button type="submit" id="btn-save-config" class="w-full py-3.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-extrabold rounded-xl text-xs uppercase tracking-widest transition-all duration-200 shadow-lg shadow-red-950/40 hover:-translate-y-0.5 cursor-pointer">
+              Desar Canvis
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Error/Success Toast -->
+  <div id="toast" class="error-toast z-50" role="alert"></div>
+
+  <!-- JavaScript -->
+  <script>
+    (function () {
+      "use strict";
+
+      const loginScreen = document.getElementById("login-screen");
+      const dashboardScreen = document.getElementById("dashboard-screen");
+      const loginForm = document.getElementById("login-form");
+      const eventConfigForm = document.getElementById("event-config-form");
+      const toast = document.getElementById("toast");
+
+      // Kept in sessionStorage (cleared when the tab closes) rather than localStorage.
+      let currentPassword = "";
+      try { currentPassword = sessionStorage.getItem("admin_password") || ""; } catch (_) {}
+      try { localStorage.removeItem("admin_password"); } catch (_) {} // purge value stored by older versions
+      let eventData = {};
+      let transfers = [];
+      let dietChartInstance = null;
+      let kintaChartInstance = null;
+      let shirtChartInstance = null;
+
+      function showToast(message, isSuccess = false) {
+        toast.textContent = message;
+        toast.style.background = isSuccess ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' : 'rgba(220, 38, 38, 0.95)';
+        toast.classList.add("error-toast--visible");
+        setTimeout(() => toast.classList.remove("error-toast--visible"), 4000);
+      }
+
+      function showScreen(screen) {
+        if (screen === 'login') {
+          loginScreen.classList.remove("hidden");
+          dashboardScreen.classList.add("hidden");
+        } else {
+          loginScreen.classList.add("hidden");
+          dashboardScreen.classList.remove("hidden");
+        }
+      }
+
+      async function fetchDashboardData() {
+        try {
+          const res = await fetch("/api/admin/transfers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: currentPassword })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Contrasenya incorrecta.");
+          }
+
+          transfers = data.transfers;
+          eventData = data.event;
+
+          try { sessionStorage.setItem("admin_password", currentPassword); } catch (_) {}
+          showScreen('dashboard');
+          renderStats();
+          renderAttendeesTable();
+          updateCharts();
+          fillConfigForm();
+
+        } catch (err) {
+          console.error("Dashboard error:", err);
+          showToast(err.message || "Error en autenticar-se.");
+          try { sessionStorage.removeItem("admin_password"); } catch (_) {}
+          showScreen('login');
+        }
+      }
+
+      function renderStats() {
+        const totalSold = transfers.length;
+        const totalIncome = transfers.reduce((acc, t) => acc + (t.amountEur || 0), 0);
+        const totalVegan = transfers.filter(t => t.vegan).length;
+
+        document.getElementById("stat-sold").textContent = totalSold;
+        document.getElementById("stat-income").textContent = new Intl.NumberFormat("ca-ES", { style: "currency", currency: "EUR" }).format(totalIncome);
+        document.getElementById("stat-vegan").textContent = totalVegan;
+        document.getElementById("stat-shirts").textContent = totalSold;
+        document.getElementById("stat-remaining").textContent = `${eventData.ticketsRemaining} / ${eventData.totalTickets}`;
+      }
+
+      function fillConfigForm() {
+        document.getElementById("config-title").value = eventData.eventTitle || "";
+        document.getElementById("config-date").value = eventData.eventDate || "";
+        document.getElementById("config-location").value = eventData.eventLocation || "";
+        document.getElementById("config-price").value = eventData.ticketPriceEur || 0;
+        document.getElementById("config-total").value = eventData.totalTickets || 0;
+        document.getElementById("config-remaining").value = eventData.ticketsRemaining || 0;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function renderAttendeesTable(filteredTransfers = transfers) {
+        const tbody = document.getElementById("attendees-table-body");
+        tbody.innerHTML = "";
+
+        if (filteredTransfers.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500">Cap assistent trobat</td></tr>`;
+          return;
+        }
+
+        filteredTransfers.forEach(t => {
+          const tr = document.createElement("tr");
+          tr.className = "hover:bg-white/2 cursor-pointer transition border-b border-white/5";
+
+          // Format Date
+          let formattedDate = "N/A";
+          if (t.createdAt) {
+            const date = new Date(t.createdAt);
+            formattedDate = date.toLocaleDateString("ca-ES", {
+              day: "2-digit",
+              month: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit"
+            });
+          }
+
+          tr.innerHTML = `
+            <td class="p-4 font-extrabold text-white font-heading text-sm">${escapeHtml(t.fullName)}</td>
+            <td class="p-4 text-xs text-slate-300">
+              <div class="font-mono text-[11px] text-slate-400">${escapeHtml(t.email)}</div>
+              <div class="mt-1 text-slate-300 font-medium">${escapeHtml(t.town)} (${escapeHtml(t.birthYear || 'N/A')})</div>
+            </td>
+            <td class="p-4 font-mono font-semibold text-xs text-slate-200">${t.kinta ? 'Kinta ' + escapeHtml(t.kinta) : '<span class="text-slate-500">Sense Kinta</span>'}</td>
+            <td class="p-4"><span class="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs font-bold font-mono inline-block">👕 ${escapeHtml(t.shirtSize || 'N/A')}</span></td>
+            <td class="p-4">${t.vegan ? '<span class="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-bold inline-block">🌱 Vegà</span>' : '<span class="px-2.5 py-1 rounded-lg bg-white/5 text-slate-400 border border-white/10 text-xs font-medium inline-block">🥩 Estàndard</span>'}</td>
+            <td class="p-4 text-xs text-slate-400 italic max-w-xs truncate" title="${escapeHtml(t.proposals)}">${t.proposals ? escapeHtml(t.proposals) : '<span class="text-slate-600">-</span>'}</td>
+            <td class="p-4 text-xs font-mono text-slate-400">${formattedDate}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      function updateCharts() {
+        const totalSold = transfers.length;
+        const totalVegan = transfers.filter(t => t.vegan).length;
+        const totalMeat = totalSold - totalVegan;
+
+        // Update diet details texts
+        document.getElementById("diet-chart-total").textContent = `${totalSold} menús`;
+        document.getElementById("diet-meat-count").textContent = totalMeat;
+        document.getElementById("diet-vegan-count").textContent = totalVegan;
+
+        // 1. DIET CHART
+        if (dietChartInstance) dietChartInstance.destroy();
+        const dietCtx = document.getElementById("dietChart").getContext("2d");
+        dietChartInstance = new Chart(dietCtx, {
+          type: "doughnut",
+          data: {
+            labels: ["Estàndard 🥩", "Vegà 🌱"],
+            datasets: [{
+              data: [totalMeat, totalVegan],
+              backgroundColor: ["#ef4444", "#22c55e"],
+              borderWidth: 2,
+              borderColor: "#0f0505"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            cutout: "75%"
+          }
+        });
+
+        // 2. KINTA CHART
+        const kintaCounts = {};
+        transfers.forEach(t => {
+          const k = t.kinta || "Sense Kinta";
+          kintaCounts[k] = (kintaCounts[k] || 0) + 1;
+        });
+
+        const kintasArray = Object.keys(kintaCounts).sort((a, b) => {
+          if (a === "Sense Kinta") return 1;
+          if (b === "Sense Kinta") return -1;
+          return Number(a) - Number(b);
+        });
+        const kintaValues = kintasArray.map(k => kintaCounts[k]);
+
+        document.getElementById("kinta-chart-total").textContent = `${kintasArray.length} Kintes`;
+
+        if (kintaChartInstance) kintaChartInstance.destroy();
+        const kintaCtx = document.getElementById("kintaChart").getContext("2d");
+        kintaChartInstance = new Chart(kintaCtx, {
+          type: "bar",
+          data: {
+            labels: kintasArray.map(k => k === "Sense Kinta" ? "Altres" : `K. ${k}`),
+            datasets: [{
+              label: "Persones",
+              data: kintaValues,
+              backgroundColor: "rgba(239, 68, 68, 0.8)",
+              borderColor: "#ef4444",
+              borderWidth: 1.5,
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { color: "#94a3b8", font: { family: "monospace", size: 10 } }
+              },
+              y: {
+                grid: { color: "rgba(255,255,255,0.05)" },
+                ticks: { color: "#94a3b8", stepSize: 1, font: { family: "monospace" } },
+                border: { dash: [4, 4] }
+              }
+            }
+          }
+        });
+
+        // 3. SHIRT SIZE CHART
+        const shirtCounts = {};
+        transfers.forEach(t => {
+          const s = t.shirtSize || "N/A";
+          shirtCounts[s] = (shirtCounts[s] || 0) + 1;
+        });
+
+        const shirtKeys = Object.keys(shirtCounts);
+        const shirtValues = shirtKeys.map(k => shirtCounts[k]);
+
+        document.getElementById("shirt-chart-total").textContent = `${totalSold} samarretes`;
+
+        if (shirtChartInstance) shirtChartInstance.destroy();
+        const shirtCtx = document.getElementById("shirtChart").getContext("2d");
+        shirtChartInstance = new Chart(shirtCtx, {
+          type: "bar",
+          data: {
+            labels: shirtKeys.map(k => `Talla ${k}`),
+            datasets: [{
+              label: "Samarretes",
+              data: shirtValues,
+              backgroundColor: "rgba(245, 158, 11, 0.8)",
+              borderColor: "#f59e0b",
+              borderWidth: 1.5,
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { color: "#94a3b8", font: { family: "monospace", size: 10 } }
+              },
+              y: {
+                grid: { color: "rgba(255,255,255,0.05)" },
+                ticks: { color: "#94a3b8", stepSize: 1, font: { family: "monospace" } },
+                border: { dash: [4, 4] }
+              }
+            }
+          }
+        });
+      }
+
+      // ── Event Handlers ──────────────────────────────────────────────────
+      loginForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        currentPassword = document.getElementById("password").value;
+        fetchDashboardData();
+      });
+
+      document.getElementById("btn-logout").addEventListener("click", function () {
+        try { sessionStorage.removeItem("admin_password"); } catch (_) {}
+        currentPassword = "";
+        showScreen('login');
+      });
+
+      // Search input listener
+      document.getElementById("search-input").addEventListener("input", function (e) {
+        const query = e.target.value.toLowerCase().trim();
+        const filtered = transfers.filter(t => {
+          return (t.fullName || "").toLowerCase().includes(query) ||
+                 (t.email || "").toLowerCase().includes(query) ||
+                 (t.town || "").toLowerCase().includes(query) ||
+                 (t.kinta || "").toLowerCase().includes(query) ||
+                 (t.shirtSize || "").toLowerCase().includes(query);
+        });
+        renderAttendeesTable(filtered);
+      });
+
+      // Event Config Update
+      eventConfigForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const saveBtn = document.getElementById("btn-save-config");
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Desant...";
+
+        const payload = {
+          password: currentPassword,
+          eventTitle: document.getElementById("config-title").value,
+          eventDate: document.getElementById("config-date").value,
+          eventLocation: document.getElementById("config-location").value,
+          ticketPriceEur: Number(document.getElementById("config-price").value),
+          totalTickets: Number(document.getElementById("config-total").value),
+          ticketsRemaining: Number(document.getElementById("config-remaining").value)
+        };
+
+        try {
+          const res = await fetch("/api/admin/update-event", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "No s'ha pogut desar la configuració.");
+          
+          showToast("Configuració desada correctament!", true);
+          fetchDashboardData(); // Reload stats and event config
+
+        } catch (err) {
+          console.error(err);
+          showToast(err.message);
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Desar Canvis";
+        }
+      });
+
+      // CSV Export
+      document.getElementById("btn-export-csv").addEventListener("click", function () {
+        if (transfers.length === 0) {
+          showToast("No hi ha assistents per exportar.");
+          return;
+        }
+
+        const headers = ["Nom Complet", "Correu", "Any Naixement", "Edat", "Poble", "Kinta", "Talla Samarreta", "Sopar Vegà", "Propostes", "Data Pagament"];
+        const currentYear = new Date().getFullYear();
+        const rows = transfers.map(t => {
+          const formattedDate = t.createdAt ? new Date(t.createdAt).toLocaleString("ca-ES") : "N/A";
+          const age = t.birthYear ? (currentYear - Number(t.birthYear)) : "N/A";
+          const kintaStr = t.kinta ? `Kinta ${t.kinta}` : "Sense Kinta";
+          return [
+            t.fullName || "N/A",
+            t.email || "N/A",
+            t.birthYear || "N/A",
+            age,
+            t.town || "N/A",
+            kintaStr,
+            t.shirtSize || "N/A",
+            t.vegan ? "SÍ" : "NO",
+            t.proposals || "",
+            formattedDate
+          ];
+        });
+
+        // Quote every cell, escape double quotes, and neutralise spreadsheet formulas (CSV injection)
+        const csvCell = (value) => {
+          let s = String(value ?? "");
+          if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+          return `"${s.replace(/"/g, '""')}"`;
+        };
+
+        // Include BOM for proper Excel encoding of accents/Catalan characters
+        const csvContent = "\uFEFF" + [headers, ...rows].map(r => r.map(csvCell).join(";")).join("\n");
+
+        const blobUrl = URL.createObjectURL(new Blob([csvContent], { type: "text/csv;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.setAttribute("href", blobUrl);
+        link.setAttribute("download", `assistents_sopar_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      });
+
+      // Init authentication state
+      if (currentPassword) {
+        fetchDashboardData();
+      } else {
+        showScreen('login');
+      }
+
+    })();
+  </script>
+</body>
+</html>

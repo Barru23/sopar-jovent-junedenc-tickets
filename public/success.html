@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Confirmació de compra — Sopar de Festa Major 2026">
+  <title>Confirmació — Sopar de Festa Major 2026</title>
+
+  <!-- Tailwind CSS v4 Play CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/css/custom.css">
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎟️</text></svg>">
+
+  <style>
+    /* ── Success page specific styles ── */
+    .success-wrapper {
+      width: 100%;
+      max-width: 520px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .success-card {
+      background: linear-gradient(160deg, #1f0505 0%, #160303 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.5rem;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5), 0 0 40px rgba(220,38,38,0.15);
+      overflow: hidden;
+    }
+
+    /* Green success banner at top */
+    .success-banner {
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      padding: 2rem 2.5rem 1.75rem;
+      text-align: center;
+    }
+
+    .success-check {
+      width: 64px;
+      height: 64px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+      animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .success-banner h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: white;
+      margin-bottom: 0.35rem;
+    }
+
+    .success-banner p {
+      font-size: 0.875rem;
+      color: rgba(255,255,255,0.75);
+    }
+
+    /* Main body */
+    .success-body {
+      padding: 2rem 2.5rem;
+    }
+
+    /* Detail rows */
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1.5rem;
+      padding: 0.875rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+
+    .detail-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      flex-shrink: 0;
+      padding-top: 0.1rem;
+    }
+
+    .detail-value {
+      font-size: 0.925rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      text-align: right;
+    }
+
+    /* Ticket code box */
+    .ticket-code-box {
+      background: rgba(220, 38, 38, 0.08);
+      border: 1px dashed rgba(220, 38, 38, 0.3);
+      border-radius: 0.875rem;
+      padding: 1.25rem 1.5rem;
+      text-align: center;
+      margin: 1.5rem 0;
+    }
+
+    .ticket-code-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #f87171;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.6rem;
+    }
+
+    .ticket-code-value {
+      font-family: 'Courier New', monospace;
+      font-size: 0.825rem;
+      color: #f1f5f9;
+      word-break: break-all;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .ticket-code-hint {
+      font-size: 0.75rem;
+      color: #475569;
+      margin-top: 0.5rem;
+    }
+
+    /* Status badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #34d399;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #34d399;
+      flex-shrink: 0;
+    }
+
+    /* Amount highlight */
+    .amount-value {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #4ade80;
+    }
+
+    /* Return button */
+    .return-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      color: white;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border-radius: 0.875rem;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      margin-top: 1.5rem;
+    }
+
+    .return-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(16, 185, 129, 0.35);
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 py-10">
+
+  <!-- ── Animated Background Orbs ──────────────────────────────────────── -->
+  <div class="bg-orb bg-orb--1"></div>
+  <div class="bg-orb bg-orb--2"></div>
+  <div class="bg-orb bg-orb--3"></div>
+
+  <!-- ── Confetti Canvas ───────────────────────────────────────────────── -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- ── Success Card ──────────────────────────────────────────────────── -->
+  <div class="success-wrapper">
+
+    <!-- Loading State -->
+    <div id="loading-state" class="success-card" style="padding:3rem 2.5rem; text-align:center;">
+      <div class="spinner mx-auto mb-4" style="width:40px;height:40px;border-width:3px;"></div>
+      <p style="color:#64748b;">Carregant la confirmació...</p>
+    </div>
+
+    <!-- Success Content -->
+    <div id="success-content" class="success-card hidden">
+
+      <!-- Green banner -->
+      <div class="success-banner">
+        <div class="success-check">
+          <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+        </div>
+        <h1>Gràcies per la teva compra!</h1>
+        <p>La teva entrada ha estat confirmada</p>
+      </div>
+
+      <!-- Body -->
+      <div class="success-body">
+
+        <!-- Detail rows -->
+        <div style="margin-bottom: 0.5rem;">
+          <div class="detail-row">
+            <span class="detail-label">Nom</span>
+            <span class="detail-value" id="detail-name">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Correu</span>
+            <span class="detail-value" id="detail-email" style="font-size:0.82rem;">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Poble</span>
+            <span class="detail-value" id="detail-town">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Kinta</span>
+            <span class="detail-value" id="detail-kinta">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Talla samarreta</span>
+            <span class="detail-value" id="detail-shirtSize">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Sopar vegà</span>
+            <span class="detail-value" id="detail-vegan">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Import</span>
+            <span class="detail-value amount-value" id="detail-amount">—</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Estat</span>
+            <span class="detail-value">
+              <span class="status-badge">
+                <span class="status-dot"></span>
+                Pagament completat
+              </span>
+            </span>
+          </div>
+        </div>
+
+         <!-- Return button -->
+        <a href="/" class="return-btn">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+          </svg>
+          Tornar a l'inici
+        </a>
+
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-state" class="success-card hidden" style="padding:3rem 2.5rem; text-align:center;">
+      <div style="width:64px;height:64px;background:rgba(220,38,38,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;">
+        <svg style="width:32px;height:32px;color:#f87171;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+      </div>
+      <h2 style="font-size:1.25rem;font-weight:700;color:white;margin-bottom:0.75rem;">No s'ha pogut carregar la confirmació</h2>
+      <p style="color:#64748b;margin-bottom:1.5rem;">Si has completat el pagament, no et preocupis — la teva entrada és vàlida i rebràs un correu de confirmació.</p>
+      <a href="/" class="return-btn" style="display:inline-flex;width:auto;padding:0.75rem 2rem;">Tornar a l'inici</a>
+    </div>
+
+  </div>
+
+  <!-- ── JavaScript ────────────────────────────────────────────────────── -->
+  <script>
+    (function () {
+      "use strict";
+
+      const loadingState = document.getElementById("loading-state");
+      const successContent = document.getElementById("success-content");
+      const errorState = document.getElementById("error-state");
+
+      function formatPrice(amountCents, currency) {
+        return new Intl.NumberFormat("ca-ES", {
+          style: "currency",
+          currency: currency || "eur",
+        }).format(amountCents / 100);
+      }
+
+      function launchConfetti() {
+        const canvas = document.getElementById("confetti-canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const colors = ["#dc2626", "#ef4444", "#f59e0b", "#fbbf24", "#10b981", "#f87171"];
+        const particles = [];
+
+        for (let i = 0; i < 120; i++) {
+          particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height - canvas.height,
+            w: Math.random() * 8 + 4,
+            h: Math.random() * 4 + 2,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            speed: Math.random() * 3 + 2,
+            angle: Math.random() * Math.PI * 2,
+            spin: (Math.random() - 0.5) * 0.2,
+            drift: (Math.random() - 0.5) * 1.5,
+            opacity: 1,
+          });
+        }
+
+        let frame = 0;
+        const maxFrames = 180;
+
+        function animate() {
+          if (frame > maxFrames) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            return;
+          }
+          frame++;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          for (const p of particles) {
+            p.y += p.speed;
+            p.x += p.drift;
+            p.angle += p.spin;
+            if (frame > maxFrames - 40) p.opacity = Math.max(0, p.opacity - 0.025);
+
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.angle);
+            ctx.globalAlpha = p.opacity;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            ctx.restore();
+          }
+          requestAnimationFrame(animate);
+        }
+        animate();
+      }
+
+      async function loadSessionStatus() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get("session_id");
+
+        if (!sessionId) { showError(); return; }
+
+        try {
+          const res = await fetch(`/api/session-status?session_id=${encodeURIComponent(sessionId)}`);
+          if (!res.ok) throw new Error("Failed to fetch session");
+
+          const data = await res.json();
+
+          if (data.status !== "paid") { showError(); return; }
+
+          document.getElementById("detail-name").textContent = data.customerName || "—";
+          document.getElementById("detail-email").textContent = data.customerEmail || "—";
+          document.getElementById("detail-town").textContent = data.town || "—";
+          document.getElementById("detail-kinta").textContent = data.kinta ? `${data.kinta}` : "—";
+          document.getElementById("detail-shirtSize").textContent = data.shirtSize || "—";
+          document.getElementById("detail-vegan").textContent = data.vegan === "true" || data.vegan?.startsWith("Sí") ? "Sí 🌱" : "No";
+          document.getElementById("detail-amount").textContent = formatPrice(data.amountTotal, data.currency);
+          const tokenEl = document.getElementById("detail-token");
+          if (tokenEl) tokenEl.textContent = data.ticketToken || "Pendent de confirmació...";
+
+          loadingState.classList.add("hidden");
+          successContent.classList.remove("hidden");
+          launchConfetti();
+        } catch (err) {
+          console.error("Error loading session:", err);
+          showError();
+        }
+      }
+
+      function showError() {
+        loadingState.classList.add("hidden");
+        errorState.classList.remove("hidden");
+      }
+
+      loadSessionStatus();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Config collection ──────────────────────────────────────────
+    // The 'config/event' document holds ticket count and event info.
+    // Clients may READ it (to display remaining tickets).
+    // Only the Admin SDK (Cloud Functions) may WRITE.
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── Transfers collection ───────────────────────────────────────
+    // Contains purchase records created exclusively by the webhook
+    // Cloud Function via Admin SDK. No client access whatsoever.
+    match /transfers/{docId} {
+      allow read, write: if false;
+    }
+
+    // ── Processed Events collection ────────────────────────────────
+    // Internal idempotency tracking for Stripe webhook events.
+    // No client access.
+    match /processedEvents/{docId} {
+      allow read, write: if false;
+    }
+
+    // ── Deny everything else by default ────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
