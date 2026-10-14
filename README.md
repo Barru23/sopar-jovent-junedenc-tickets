@@ -14,7 +14,7 @@
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06b6d4?logo=tailwindcss&logoColor=white)
 ![Chart.js](https://img.shields.io/badge/Chart.js-4-ff6384?logo=chartdotjs&logoColor=white)
 ![Apps Script](https://img.shields.io/badge/Google_Apps_Script-Sheets_·_Gmail-4285f4?logo=google&logoColor=white)
-[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+[![License: all rights reserved](https://img.shields.io/badge/license-all_rights_reserved-lightgrey)](LICENSE)
 
 </div>
 
@@ -364,7 +364,7 @@ To reset test data, run `GCLOUD_PROJECT=<project-id> node scripts/clear-test-dat
 
 Design and development: **Gerard Barrufet Segarra** ([@Barru23](https://github.com/Barru23)).
 
-The source code is released under the [MIT License](LICENSE). The event poster (`public/poster-sopar-2026.jpeg`) and event branding belong to the event organisers and are **not** covered by the license.
+The source code is published for portfolio and reference purposes, with all rights reserved: see [`LICENSE`](LICENSE). The event poster (`public/poster-sopar-2026.jpeg`) and event branding belong to the event organisers.
 
 ---
 
