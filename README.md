@@ -329,13 +329,9 @@ firebase deploy
 
 In Stripe, add a webhook endpoint for `checkout.session.completed` pointing to `https://<region>-<project-id>.cloudfunctions.net/api/webhook`.
 
-### 6. Recommended hardening
+### 6. Retention and cost alerts
 
-```bash
-# Auto-delete abandoned checkouts after 7 days and expired rate-limit counters (TTL on expireAt)
-gcloud firestore fields ttls update expireAt --collection-group=pendingCheckouts --enable-ttl
-gcloud firestore fields ttls update expireAt --collection-group=rateLimits --enable-ttl
-```
+The TTL policies that delete abandoned checkouts after 7 days and expired rate-limit counters are declared in `firestore.indexes.json`, so `firebase deploy` creates them and never offers to delete them.
 
 Also set a **budget alert** in Google Cloud Billing: the per-client checkout limit stops naive scripts, but a script that forges `X-Forwarded-For` can still create sessions, and the alert is what catches that.
 
