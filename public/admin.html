@@ -365,10 +365,11 @@
       const eventConfigForm = document.getElementById("event-config-form");
       const toast = document.getElementById("toast");
 
-      // Kept in sessionStorage (cleared when the tab closes) rather than localStorage.
-      let currentPassword = "";
-      try { currentPassword = sessionStorage.getItem("admin_password") || ""; } catch (_) {}
-      try { localStorage.removeItem("admin_password"); } catch (_) {} // purge value stored by older versions
+      // The password is only sent once, to /api/admin/login. What stays in sessionStorage (cleared when
+      // the tab closes) is the signed session token it returns, which expires on its own.
+      let sessionToken = "";
+      try { sessionToken = sessionStorage.getItem("admin_session") || ""; } catch (_) {}
+      try { localStorage.removeItem("admin_password"); sessionStorage.removeItem("admin_password"); } catch (_) {} // older versions
       let eventData = {};
       let transfers = [];
       let dietChartInstance = null;
@@ -392,33 +393,62 @@
         }
       }
 
-      async function fetchDashboardData() {
+      function adminHeaders() {
+        return { "Content-Type": "application/json", "Authorization": `Bearer ${sessionToken}` };
+      }
+
+      function endSession() {
+        sessionToken = "";
+        try { sessionStorage.removeItem("admin_session"); } catch (_) {}
+        showScreen('login');
+      }
+
+      async function login(password) {
         try {
-          const res = await fetch("/api/admin/transfers", {
+          const res = await fetch("/api/admin/login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password: currentPassword })
+            body: JSON.stringify({ password })
           });
           const data = await res.json();
-          if (!res.ok) {
-            throw new Error(data.error || "Contrasenya incorrecta.");
+          if (!res.ok || !data.token) throw new Error(data.error || "Contrasenya incorrecta.");
+          sessionToken = data.token;
+          try { sessionStorage.setItem("admin_session", sessionToken); } catch (_) {}
+          fetchDashboardData();
+        } catch (err) {
+          console.error("Login error:", err);
+          showToast(err.message || "Error en autenticar-se.");
+        }
+      }
+
+      async function fetchDashboardData() {
+        try {
+          const res = await fetch("/api/admin/transfers", { method: "POST", headers: adminHeaders(), body: "{}" });
+          const data = await res.json();
+          if (res.status === 401) {
+            endSession();
+            showToast(data.error || "La sessió ha caducat. Torna a entrar.");
+            return;
           }
+          if (!res.ok) throw new Error(data.error || "No s'han pogut carregar les dades.");
 
           transfers = data.transfers;
           eventData = data.event;
 
-          try { sessionStorage.setItem("admin_password", currentPassword); } catch (_) {}
           showScreen('dashboard');
           renderStats();
           renderAttendeesTable();
           updateCharts();
           fillConfigForm();
 
+          const unrefunded = data.unrefunded || [];
+          if (unrefunded.length > 0) {
+            showToast(`Atenció: ${unrefunded.length} compra(es) pagada(es) sense places i sense reemborsar. ` +
+              "Reemborsa-les des del Dashboard de Stripe.");
+          }
         } catch (err) {
           console.error("Dashboard error:", err);
-          showToast(err.message || "Error en autenticar-se.");
-          try { sessionStorage.removeItem("admin_password"); } catch (_) {}
-          showScreen('login');
+          showToast(err.message || "No s'han pogut carregar les dades.");
         }
       }
 
@@ -629,15 +659,12 @@
       // ── Event Handlers ──────────────────────────────────────────────────
       loginForm.addEventListener("submit", function (e) {
         e.preventDefault();
-        currentPassword = document.getElementById("password").value;
-        fetchDashboardData();
+        const passwordInput = document.getElementById("password");
+        login(passwordInput.value);
+        passwordInput.value = "";
       });
 
-      document.getElementById("btn-logout").addEventListener("click", function () {
-        try { sessionStorage.removeItem("admin_password"); } catch (_) {}
-        currentPassword = "";
-        showScreen('login');
-      });
+      document.getElementById("btn-logout").addEventListener("click", endSession);
 
       // Search input listener
       document.getElementById("search-input").addEventListener("input", function (e) {
@@ -660,7 +687,6 @@
         saveBtn.textContent = "Desant...";
 
         const payload = {
-          password: currentPassword,
           eventTitle: document.getElementById("config-title").value,
           eventDate: document.getElementById("config-date").value,
           eventLocation: document.getElementById("config-location").value,
@@ -672,10 +698,14 @@
         try {
           const res = await fetch("/api/admin/update-event", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: adminHeaders(),
             body: JSON.stringify(payload)
           });
           const data = await res.json();
+          if (res.status === 401) {
+            endSession();
+            throw new Error(data.error || "La sessió ha caducat. Torna a entrar.");
+          }
           if (!res.ok) throw new Error(data.error || "No s'ha pogut desar la configuració.");
           
           showToast("Configuració desada correctament!", true);
@@ -720,7 +750,7 @@
         // Quote every cell, escape double quotes, and neutralise spreadsheet formulas (CSV injection)
         const csvCell = (value) => {
           let s = String(value ?? "");
-          if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+          if (/^[\s\u0000-\u001f]*[=+\-@＝＋－＠]/.test(s)) s = "'" + s;
           return `"${s.replace(/"/g, '""')}"`;
         };
 
@@ -738,7 +768,7 @@
       });
 
       // Init authentication state
-      if (currentPassword) {
+      if (sessionToken) {
         fetchDashboardData();
       } else {
         showScreen('login');

@@ -19,11 +19,12 @@ function escapeHtml(value) {
 
 /**
  * Evita la injecció de fórmules al full de càlcul: qualsevol text que comenci per
- * = + - @ (o tabulador / retorn) es desa com a text pla amb un apòstrof davant.
+ * = + - @ (també en amplada completa, o precedit d'espais o caràcters de control)
+ * es desa com a text pla amb un apòstrof davant.
  */
 function safeCell(value) {
   if (typeof value !== "string") return value;
-  return /^[=+\-@\t\r]/.test(value) ? "'" + value : value;
+  return /^[\s\u0000-\u001f]*[=+\-@＝＋－＠]/.test(value) ? "'" + value : value;
 }
 
 /**

@@ -6,8 +6,9 @@
  *   POST /api/webhook                — Handles Stripe webhook events + sends confirmation email
  *   GET  /api/tickets-remaining      — Returns the current remaining ticket count
  *   GET  /api/session-status         — Returns session details for the success page
- *   POST /api/admin/transfers        — Admin: list purchases (password + lockout protected)
- *   POST /api/admin/update-event     — Admin: update event configuration
+ *   POST /api/admin/login            — Admin: exchange the password for a signed session token
+ *   POST /api/admin/transfers        — Admin: list purchases (session token)
+ *   POST /api/admin/update-event     — Admin: update event configuration (session token)
  */
 
 const { onRequest } = require("firebase-functions/v2/https");
@@ -22,7 +23,8 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // ── Secrets (stored via: firebase functions:secrets:set <NAME>) ─────────────
-const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY"); // restricted key (rk_live_…) with Checkout Sessions: Write
+// Restricted key (rk_live_…) with Checkout Sessions: Write and Refunds: Write (oversold orders)
+const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
 const adminPassword = defineSecret("ADMIN_PASSWORD"); // Password for the admin dashboard
 const appsScriptWebAppUrl = defineSecret("APPS_SCRIPT_WEB_APP_URL");
@@ -39,7 +41,6 @@ function getStripe() {
 }
 
 const EVENT_CONFIG_REF = db.collection("config").doc("event");
-const ADMIN_THROTTLE_REF = db.collection("adminAuth").doc("throttle");
 
 // Allowed origins for Stripe redirect URLs. Anything else falls back to the default Hosting domain.
 const PROJECT_ID = process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || "{}").projectId;
@@ -53,10 +54,19 @@ const ALLOWED_ORIGINS = [
 const MAX_LEN = { email: 254, fullName: 100, town: 80, shirtSize: 40, proposals: 450 };
 const SHIRT_SIZES = ["S", "M", "L", "XL", "XXL"];
 
-// Admin brute-force protection: global lockout after too many failed attempts.
-// Global (not per-IP) on purpose: X-Forwarded-For is client-controlled and cannot be trusted here.
-const ADMIN_MAX_FAILURES = 10;
-const ADMIN_WINDOW_MS = 15 * 60 * 1000;
+// Admin brute-force protection. The password is only checked at /admin/login, which hands back a
+// signed session token; the dashboard works with that token. A flood of wrong passwords can therefore
+// block NEW logins for one window, but never an admin who is already in.
+// Per-client counting is best-effort: behind Firebase Hosting the client address comes from
+// X-Forwarded-For, which a script can forge. The global ceiling is what bounds a forged-header attack.
+const LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const ADMIN_LOGINS_PER_CLIENT = 10;
+const ADMIN_LOGINS_GLOBAL = 100;
+const ADMIN_SESSION_MS = 12 * 60 * 60 * 1000;
+
+// Checkout sessions one client may open per window. Stops naive scripts from filling Firestore and
+// Stripe with abandoned sessions; a GCP budget alert is the backstop for anything that forges headers.
+const CHECKOUTS_PER_CLIENT = 10;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -79,46 +89,74 @@ function hashSecret(value) {
 }
 
 /**
- * Verifies the admin password in constant time, with a global lockout after repeated failures.
- * Sends the error response itself and returns false when the request must stop.
- * @param {object} req Express request (expects `req.body.password`)
- * @param {object} res Express response
- * @return {Promise<boolean>} true when the caller may proceed
+ * Best-effort client key: a hash of the first X-Forwarded-For hop. A script can forge it, so it only
+ * ever feeds per-client limits that sit under a global ceiling or a budget alert.
+ * @param {object} req Express request
+ * @return {string} opaque key, never the raw address
  */
-async function requireAdmin(req, res) {
-  const expectedPassword = adminPassword.value();
-  if (!expectedPassword) {
+function clientKey(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return crypto.createHash("sha256").update(`client:${forwarded || req.ip || "unknown"}`).digest("hex").slice(0, 32);
+}
+
+/**
+ * Fixed-window counter in Firestore. Records one hit and returns true while `name` is under `limit`
+ * hits in the current window; a blocked hit writes nothing. `expireAt` lets a TTL policy purge old docs.
+ * @param {string} name counter id
+ * @param {number} limit hits allowed per window
+ * @return {Promise<boolean>} true when the request may proceed
+ */
+async function consumeLimit(name, limit) {
+  const ref = db.collection("rateLimits").doc(name);
+  return db.runTransaction(async (transaction) => {
+    const doc = await transaction.get(ref);
+    const data = doc.exists ? doc.data() : {};
+    const now = Date.now();
+    const inWindow = data.windowStart && now - data.windowStart < LIMIT_WINDOW_MS;
+    const count = inWindow ? data.count || 0 : 0;
+    if (count >= limit) return false;
+    const windowStart = inWindow ? data.windowStart : now;
+    transaction.set(ref, {
+      count: count + 1,
+      windowStart,
+      expireAt: admin.firestore.Timestamp.fromMillis(windowStart + LIMIT_WINDOW_MS),
+    });
+    return true;
+  });
+}
+
+// Session tokens are `<expiresAt>.<HMAC>`, keyed by a value derived from ADMIN_PASSWORD: rotating the
+// password logs everyone out, and a leaked token reveals nothing about the password.
+function signSession(expiresAt) {
+  const key = crypto.createHmac("sha256", adminPassword.value()).update("admin-session-v1").digest();
+  return crypto.createHmac("sha256", key).update(String(expiresAt)).digest("base64url");
+}
+
+function validSession(token) {
+  if (typeof token !== "string") return false;
+  const [rawExpiry, signature] = token.split(".");
+  const expiresAt = Number(rawExpiry);
+  if (!signature || !Number.isSafeInteger(expiresAt) || expiresAt < Date.now()) return false;
+  const expected = Buffer.from(signSession(expiresAt));
+  const given = Buffer.from(signature);
+  return given.length === expected.length && crypto.timingSafeEqual(given, expected);
+}
+
+/**
+ * Guard for admin data endpoints: requires a valid `Authorization: Bearer <session token>`.
+ * Sends the error response itself and returns false when the request must stop.
+ * @param {object} req Express request
+ * @param {object} res Express response
+ * @return {boolean} true when the caller may proceed
+ */
+function requireAdmin(req, res) {
+  if (!adminPassword.value()) {
     res.status(500).json({ error: "El codi d'accés de l'administrador no està configurat." });
     return false;
   }
-
-  const throttleDoc = await ADMIN_THROTTLE_REF.get();
-  const throttle = throttleDoc.exists ? throttleDoc.data() : {};
-  const now = Date.now();
-  if (throttle.lockedUntil && throttle.lockedUntil > now) {
-    res.status(429).json({ error: "Massa intents fallits. Torna-ho a provar més tard." });
-    return false;
-  }
-
-  const ok = crypto.timingSafeEqual(hashSecret(req.body?.password), hashSecret(expectedPassword));
-  if (ok) {
-    if (throttle.failures) await ADMIN_THROTTLE_REF.set({ failures: 0, windowStart: now, lockedUntil: 0 });
-    return true;
-  }
-
-  await db.runTransaction(async (transaction) => {
-    const doc = await transaction.get(ADMIN_THROTTLE_REF);
-    const data = doc.exists ? doc.data() : {};
-    const inWindow = data.windowStart && now - data.windowStart < ADMIN_WINDOW_MS;
-    const failures = (inWindow ? data.failures || 0 : 0) + 1;
-    transaction.set(ADMIN_THROTTLE_REF, {
-      failures,
-      windowStart: inWindow ? data.windowStart : now,
-      lockedUntil: failures >= ADMIN_MAX_FAILURES ? now + ADMIN_WINDOW_MS : 0,
-    });
-  });
-
-  res.status(401).json({ error: "Contrasenya incorrecta." });
+  const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  if (validSession(token)) return true;
+  res.status(401).json({ error: "La sessió ha caducat. Torna a entrar." });
   return false;
 }
 
@@ -328,6 +366,11 @@ router.post("/create-checkout-session", express.json(), async (req, res) => {
       return res.status(409).json({ error: `Ho sentim, només queden ${eventData.ticketsRemaining} entrades disponibles.` });
     }
 
+    // Counted only once the booking is valid, so a typo never uses up a buyer's attempts.
+    if (!(await consumeLimit(`checkout:${clientKey(req)}`, CHECKOUTS_PER_CLIENT))) {
+      return res.status(429).json({ error: "Massa intents de compra seguits. Espera uns minuts i torna-ho a provar." });
+    }
+
     // ── Create Stripe Checkout Session ────────────────────────────────────
     const stripe = getStripe();
     const priceInCents = Math.round((eventData.ticketPriceEur + 0.75) * 100);
@@ -498,11 +541,14 @@ router.post("/webhook", async (req, res) => {
 
       // ── 4. Atomic ticket decrement + transfer creation ──────────────
       const pendingRef = db.collection("pendingCheckouts").doc(session.id);
+      const oversoldRef = db.collection("oversold").doc(session.id);
       let attendees = [];
       let email = session.customer_email || "";
       let proposals = "";
+      let oversold = false;
 
       await db.runTransaction(async (transaction) => {
+        oversold = false;
         const eventDoc = await transaction.get(EVENT_CONFIG_REF);
         if (!eventDoc.exists) {
           throw new Error("Event configuration not found.");
@@ -532,7 +578,20 @@ router.post("/webhook", async (req, res) => {
         const qty = attendees.length;
         const remaining = eventDoc.data().ticketsRemaining;
         if (remaining < qty) {
-          throw new Error("No tickets remaining — possible oversell prevented.");
+          // Checkout does not hold seats, so the last ones can be paid for twice. Throwing here would make
+          // Stripe retry for three days while the buyer has paid without a ticket: record it, mark the
+          // event processed and refund below.
+          oversold = true;
+          transaction.set(oversoldRef, {
+            email,
+            attendeeCount: qty,
+            amountTotal: session.amount_total || 0,
+            stripePaymentIntentId: session.payment_intent || null,
+            refundStatus: "pending",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          transaction.set(processedRef, { processedAt: admin.firestore.FieldValue.serverTimestamp() });
+          return;
         }
 
         // Decrement ticket count
@@ -568,6 +627,23 @@ router.post("/webhook", async (req, res) => {
           processedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       });
+
+      if (oversold) {
+        try {
+          if (!session.payment_intent) throw new Error("Session has no payment intent");
+          await stripe.refunds.create(
+            { payment_intent: session.payment_intent },
+            { idempotencyKey: `oversold-${session.id}` },
+          );
+          await oversoldRef.update({ refundStatus: "refunded" });
+          console.warn(`Oversold session ${session.id} refunded automatically.`);
+        } catch (refundErr) {
+          // Most likely the restricted key lacks Refunds: Write. The admin dashboard flags it.
+          await oversoldRef.update({ refundStatus: "failed", refundError: String(refundErr.message).slice(0, 300) });
+          console.error(`Oversold session ${session.id} needs a manual refund:`, refundErr.message);
+        }
+        return res.json({ received: true });
+      }
 
       console.log(`✅ ${attendees.length} tickets issued for session ${session.id}`);
 
@@ -641,9 +717,30 @@ router.post("/webhook", async (req, res) => {
 });
 
 // ── Admin Endpoints ─────────────────────────────────────────────────────────
+router.post("/admin/login", express.json(), async (req, res) => {
+  try {
+    const expectedPassword = adminPassword.value();
+    if (!expectedPassword) {
+      return res.status(500).json({ error: "El codi d'accés de l'administrador no està configurat." });
+    }
+    const allowed = await consumeLimit(`admin-login:${clientKey(req)}`, ADMIN_LOGINS_PER_CLIENT) &&
+      await consumeLimit("admin-login:global", ADMIN_LOGINS_GLOBAL);
+    if (!allowed) return res.status(429).json({ error: "Massa intents. Torna-ho a provar d'aquí a un quart d'hora." });
+
+    const ok = crypto.timingSafeEqual(hashSecret(req.body?.password), hashSecret(expectedPassword));
+    if (!ok) return res.status(401).json({ error: "Contrasenya incorrecta." });
+
+    const expiresAt = Date.now() + ADMIN_SESSION_MS;
+    return res.json({ token: `${expiresAt}.${signSession(expiresAt)}` });
+  } catch (err) {
+    console.error("Error during admin login:", err);
+    return res.status(503).json({ error: "No s'ha pogut iniciar la sessió. Torna-ho a provar." });
+  }
+});
+
 router.post("/admin/transfers", express.json(), async (req, res) => {
   try {
-    if (!(await requireAdmin(req, res))) return;
+    if (!requireAdmin(req, res)) return;
 
     const snapshot = await db.collection("transfers").orderBy("createdAt", "desc").get();
     const transfers = [];
@@ -658,7 +755,11 @@ router.post("/admin/transfers", express.json(), async (req, res) => {
     const eventDoc = await EVENT_CONFIG_REF.get();
     const eventData = eventDoc.exists ? eventDoc.data() : {};
 
-    return res.json({ transfers, event: eventData });
+    const oversoldSnap = await db.collection("oversold").where("refundStatus", "!=", "refunded").get();
+    const unrefunded = oversoldSnap.docs.map((doc) => ({ sessionId: doc.id, ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate() || null }));
+
+    return res.json({ transfers, event: eventData, unrefunded });
   } catch (err) {
     console.error("Error fetching transfers:", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -667,7 +768,7 @@ router.post("/admin/transfers", express.json(), async (req, res) => {
 
 router.post("/admin/update-event", express.json(), async (req, res) => {
   try {
-    if (!(await requireAdmin(req, res))) return;
+    if (!requireAdmin(req, res)) return;
 
     const { eventTitle, eventDate, eventLocation, ticketPriceEur, totalTickets, ticketsRemaining } = req.body;
 

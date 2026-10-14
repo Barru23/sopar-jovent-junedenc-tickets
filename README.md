@@ -80,7 +80,7 @@ Every paid booking becomes a row in the organisers' sheet (date, names, email, b
 |---|---|
 | Frontend | Static **HTML** + vanilla JS, **Tailwind CSS 4** (browser build), custom CSS, **Chart.js 4** for the dashboard |
 | Backend | **Firebase Cloud Functions v2** (Node.js 20) running one **Express** app, region `europe-west1` |
-| Database | **Cloud Firestore**: event config, pending checkouts, tickets, webhook idempotency log, admin lockout |
+| Database | **Cloud Firestore**: event config, pending checkouts, tickets, webhook idempotency log, oversold payments, rate limits |
 | Hosting | **Firebase Hosting** with clean URLs; `/api/**` is rewritten to the function |
 | Payments | **Stripe Checkout** + signed webhooks, with a restricted API key |
 | Automation | **Google Apps Script** web app as a bridge to **Google Sheets** and **Gmail** |
@@ -147,7 +147,7 @@ sequenceDiagram
 2. `/api/create-checkout-session` checks every field (lengths, birth year, 4-digit *kinta*, allow-listed shirt size, valid email) and keeps only known fields. It then reads the **price and the remaining seats from Firestore**: whatever the browser shows is only a preview.
 3. The function creates a Stripe Checkout Session and stores the attendees under `pendingCheckouts/{sessionId}`, with an `expireAt` date so a TTL policy deletes abandoned checkouts after 7 days. Redirect URLs are only built from an allow-list of origins.
 4. When the buyer pays, Stripe calls `/api/webhook`. The signature is verified with `stripe.webhooks.constructEvent` before anything else happens.
-5. A single **Firestore transaction** checks there are still enough seats, decrements `ticketsRemaining`, creates one document in `transfers` per attendee (with a random `ticketToken`) and records the Stripe event id in `processedEvents`. If Stripe sends the same event again, it is skipped.
+5. A single **Firestore transaction** checks there are still enough seats, decrements `ticketsRemaining`, creates one document in `transfers` per attendee (with a random `ticketToken`) and records the Stripe event id in `processedEvents`. If Stripe sends the same event again, it is skipped. Checkout does not hold seats, so the last ones can be paid for twice: the late payment is recorded in `oversold`, refunded automatically and flagged on the dashboard if the refund fails.
 6. The function then posts the booking to Apps Script with a shared token. Apps Script appends the row to the Sheet, sends the email and marks the row as sent. If this step fails, the tickets are already stored, so the error is only logged; the organisers can still send the email from the Sheet menu.
 7. The `/success` page calls `/api/session-status`, which asks Stripe for the session and only shows the confirmation when `payment_status` is `paid`. If the webhook has not arrived yet, it builds the summary from the pending checkout.
 
@@ -155,14 +155,15 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    A["/admin<br/>password form"] -- "POST password" --> R{"locked?"}
+    A["/admin<br/>password form"] -- "POST /admin/login" --> R{"over the<br/>limit?"}
     R -- "yes" --> L["429<br/>try later"]
     R -- "no" --> C{"constant-time<br/>compare"}
-    C -- "ok" --> D["data / update event"]
-    C -- "wrong" --> T["failure counter +1<br/>10 in 15 min → lock 15 min"]
+    C -- "ok" --> S["signed session<br/>token, 12 h"]
+    C -- "wrong" --> W["401"]
+    S -- "Bearer token" --> D["data / update event"]
 ```
 
-There are no user accounts: one password, stored as a Firebase secret, protects both admin endpoints. The browser keeps it in `sessionStorage` (cleared when the tab closes) and sends it with every request. Failed attempts are counted in `adminAuth/throttle`; the lockout is global on purpose, because the client controls `X-Forwarded-For` and per-IP limits could be bypassed.
+There are no user accounts: one password, stored as a Firebase secret, is exchanged at `/api/admin/login` for a session token signed with a key derived from it (rotating the password logs everyone out). The browser keeps only that token, in `sessionStorage`. Login attempts are limited per client (10 every 15 minutes) and globally (100). The per-client key comes from `X-Forwarded-For`, which a script can forge, so the global ceiling is what bounds a distributed guess; a flood can delay *new* logins for one window but never interrupts an open session.
 
 ## Data model
 
@@ -212,30 +213,32 @@ erDiagram
 | `pendingCheckouts/{sessionId}` | `create-checkout-session` | Attendee details while the buyer is on Stripe. Deleted by TTL after 7 days. |
 | `transfers/{id}` | Webhook | One paid ticket per attendee. Source for the dashboard and the CSV. |
 | `processedEvents/{eventId}` | Webhook | Idempotency log, so Stripe retries never issue tickets twice. |
-| `adminAuth/throttle` | Admin endpoints | Failed login counter and lockout. |
+| `oversold/{sessionId}` | Webhook | Payments that arrived after the last seat was sold, with their refund status. |
+| `rateLimits/{key}` | Login and checkout | Per-client and global attempt counters, with an `expireAt` for TTL cleanup. |
 
 ## API
 
 | Method | Route | Access | Description |
 |---|---|---|---|
 | `GET` | `/api/tickets-remaining` | Public | Event info, base price and seats left. CDN-cached for 30 s. |
-| `POST` | `/api/create-checkout-session` | Public | Validates the booking and returns the Stripe Checkout URL. |
+| `POST` | `/api/create-checkout-session` | Public | Validates the booking and returns the Stripe Checkout URL. Limited to 10 per client every 15 minutes. |
 | `GET` | `/api/session-status?session_id=` | Public | Payment status and booking summary for `/success`. |
 | `POST` | `/api/webhook` | Stripe only (signature) | Handles `checkout.session.completed`. |
-| `POST` | `/api/admin/transfers` | Admin password | All tickets plus the event config. |
-| `POST` | `/api/admin/update-event` | Admin password | Updates title, date, place, price and seat counts (validated). |
+| `POST` | `/api/admin/login` | Admin password | Returns a signed session token. Rate-limited. |
+| `POST` | `/api/admin/transfers` | Admin session | All tickets, the event config and any unrefunded oversold payment. |
+| `POST` | `/api/admin/update-event` | Admin session | Updates title, date, place, price and seat counts (validated). |
 
 ## Security design
 
 - **No card data touches the app.** Payment happens entirely on Stripe's hosted, PCI-compliant checkout.
 - **Server-side pricing.** The price comes from Firestore and the quantity is capped at 1–3, so clients cannot change the amount.
-- **Least-privilege Stripe key.** The function uses a restricted key that only has `Checkout Sessions: Write`.
+- **Least-privilege Stripe key.** The function uses a restricted key with only `Checkout Sessions: Write` and `Refunds: Write` (for oversold payments).
 - **Webhook integrity.** Every webhook is checked with `stripe.webhooks.constructEvent` before any state changes. Processed event ids are stored, so Stripe retries have no effect.
-- **Atomic inventory.** The seat decrement and the ticket records are written in a single Firestore transaction, which re-checks availability and prevents overselling the counter.
+- **Atomic inventory.** The seat decrement and the ticket records are written in a single Firestore transaction, which re-checks availability and never oversells the counter. A payment that loses that race is refunded instead of retried.
 - **Strict input validation.** Lengths are capped, *kinta* and shirt-size values are allow-listed, and only known fields are stored.
 - **Safe redirects.** Stripe success and cancel URLs are only built from an allow-list of origins.
 - **Output encoding everywhere.** HTML is escaped in the emails and the admin table. Spreadsheet formula and CSV injection are neutralised in Google Sheets and in the CSV export.
-- **Admin hardening.** The password is compared in constant time (SHA-256 + `timingSafeEqual`) with a global lockout after repeated failures. It lives only in `sessionStorage`, and there is no destructive "wipe" endpoint over HTTP.
+- **Admin hardening.** The password is compared in constant time (SHA-256 + `timingSafeEqual`), only at login, behind per-client and global limits. The browser keeps a signed, expiring session token instead of the password, and there is no destructive "wipe" endpoint over HTTP.
 - **Locked-down Firestore rules.** Clients can only read `config/*`. Everything else is denied and reachable only through the Admin SDK.
 - **Authenticated bridge.** Apps Script rejects every request whose token does not match its `SECURITY_TOKEN` property, and rejects everything if the property is missing.
 - **Secrets out of the code.** Firebase Secret Manager holds the backend credentials and Apps Script *Script Properties* hold the bridge token.
@@ -300,7 +303,7 @@ Create the document `config/event` in Firestore:
 ### 4. Secrets
 
 ```bash
-firebase functions:secrets:set STRIPE_SECRET_KEY         # restricted key, Checkout Sessions: Write
+firebase functions:secrets:set STRIPE_SECRET_KEY         # restricted key: Checkout Sessions + Refunds, Write
 firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
 firebase functions:secrets:set APPS_SCRIPT_WEB_APP_URL
 firebase functions:secrets:set APPS_SCRIPT_SECRET_TOKEN  # same value as SECURITY_TOKEN
@@ -309,7 +312,7 @@ firebase functions:secrets:set ADMIN_PASSWORD
 
 | Secret | Used for |
 |---|---|
-| `STRIPE_SECRET_KEY` | Creating and reading Checkout Sessions. |
+| `STRIPE_SECRET_KEY` | Creating and reading Checkout Sessions, and refunding oversold payments. |
 | `STRIPE_WEBHOOK_SECRET` | Verifying webhook signatures. |
 | `APPS_SCRIPT_WEB_APP_URL` | The `/exec` URL of the Apps Script web app. If empty, the Sheet and email step is skipped. |
 | `APPS_SCRIPT_SECRET_TOKEN` | Shared secret, must match the `SECURITY_TOKEN` script property. |
@@ -329,11 +332,12 @@ In Stripe, add a webhook endpoint for `checkout.session.completed` pointing to `
 ### 6. Recommended hardening
 
 ```bash
-# Auto-delete abandoned checkouts after 7 days (TTL on the expireAt field)
+# Auto-delete abandoned checkouts after 7 days and expired rate-limit counters (TTL on expireAt)
 gcloud firestore fields ttls update expireAt --collection-group=pendingCheckouts --enable-ttl
+gcloud firestore fields ttls update expireAt --collection-group=rateLimits --enable-ttl
 ```
 
-Also set a **budget alert** in Google Cloud Billing.
+Also set a **budget alert** in Google Cloud Billing: the per-client checkout limit stops naive scripts, but a script that forges `X-Forwarded-For` can still create sessions, and the alert is what catches that.
 
 ## Local development
 
